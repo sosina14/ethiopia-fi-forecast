@@ -21,7 +21,7 @@ from analysis import (
 def _sample_obs():
     return pd.DataFrame({
         "indicator_code": ["ACC_OWNERSHIP", "ACC_OWNERSHIP", "ACC_OWNERSHIP", "ACC_OWNERSHIP"],
-        "gender": [None, None, "male", "female"],
+        "gender": ["all", "all", "male", "female"],
         "value_numeric": [35, 49, 56, 36],
         "observation_date": pd.to_datetime(["2017-01-01", "2024-01-01", "2022-01-01", "2022-01-01"]),
     })
@@ -31,7 +31,21 @@ def test_get_indicator_series_excludes_gender_rows():
     obs = _sample_obs()
     series = get_indicator_series(obs, "ACC_OWNERSHIP")
     assert len(series) == 2
-    assert series["gender"].isna().all()
+    assert (series["gender"] == "all").all()
+
+
+def test_get_indicator_series_handles_nan_convention_too():
+    # Some sources may leave gender blank instead of using 'all' — both
+    # should be treated as national-level.
+    obs = pd.DataFrame({
+        "indicator_code": ["ACC_OWNERSHIP", "ACC_OWNERSHIP"],
+        "gender": [None, "male"],
+        "value_numeric": [49, 56],
+        "observation_date": pd.to_datetime(["2024-01-01", "2022-01-01"]),
+    })
+    series = get_indicator_series(obs, "ACC_OWNERSHIP")
+    assert len(series) == 1
+    assert series["value_numeric"].iloc[0] == 49
 
 
 def test_get_indicator_series_empty_warns(capsys):

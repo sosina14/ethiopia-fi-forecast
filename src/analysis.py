@@ -9,12 +9,30 @@ Author: Sosina Ayele
 import pandas as pd
 
 
+def _is_national_level(gender_series: pd.Series) -> pd.Series:
+    """Return a boolean mask for rows representing the national (non-
+    disaggregated) total, tolerant of either a blank gender field or an
+    explicit 'all' marker (as used in the Ethiopia dataset).
+
+    Args:
+        gender_series: The 'gender' column.
+
+    Returns:
+        Boolean Series, True where the row is national-level.
+    """
+    is_blank = gender_series.isna()
+    is_all_marker = gender_series.astype(str).str.strip().str.lower() == "all"
+    return is_blank | is_all_marker
+
+
 def get_indicator_series(obs: pd.DataFrame, indicator_code: str) -> pd.DataFrame:
     """Return a clean, sorted single-indicator national time series.
 
-    Gender-disaggregated rows (where the 'gender' field is populated) are
-    excluded so that male/female breakouts of the same survey wave do not
-    get plotted alongside the national total and distort the trend line.
+    Gender-disaggregated rows (male/female breakouts) are excluded so they
+    don't get plotted alongside the national total and distort the trend
+    line. National-level rows are identified as either a blank 'gender'
+    field or an explicit 'all' marker, since source datasets vary in which
+    convention they use.
 
     Args:
         obs: Observations DataFrame (record_type == 'observation').
@@ -27,7 +45,7 @@ def get_indicator_series(obs: pd.DataFrame, indicator_code: str) -> pd.DataFrame
         raise ValueError("obs DataFrame has no 'indicator_code' column")
 
     series = obs[
-        (obs["indicator_code"] == indicator_code) & (obs["gender"].isna())
+        (obs["indicator_code"] == indicator_code) & _is_national_level(obs["gender"])
     ].sort_values("observation_date")
 
     if series.empty:
@@ -37,17 +55,18 @@ def get_indicator_series(obs: pd.DataFrame, indicator_code: str) -> pd.DataFrame
 
 
 def get_disaggregated_series(obs: pd.DataFrame, indicator_code: str) -> pd.DataFrame:
-    """Return gender-disaggregated rows only for a given indicator.
+    """Return gender-disaggregated rows only (male/female, not the national
+    'all' total) for a given indicator.
 
     Args:
         obs: Observations DataFrame.
         indicator_code: Indicator code to filter on.
 
     Returns:
-        DataFrame of rows where 'gender' is populated, sorted by date.
+        DataFrame of non-national-level rows, sorted by date.
     """
     series = obs[
-        (obs["indicator_code"] == indicator_code) & (obs["gender"].notna())
+        (obs["indicator_code"] == indicator_code) & ~_is_national_level(obs["gender"])
     ].sort_values("observation_date")
     return series
 
